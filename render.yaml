@@ -1,34 +1,40 @@
 services:
   - type: web
-    name: overlap-ai
+    name: overlap-ai-backend
     env: node
+    region: oregon
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3001
       - key: OPENAI_API_KEY
         sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_USER
+      - key: SKIP_EMAIL
+        value: true
+      - key: USE_GPT_HIGHLIGHTS
+        value: false
+      - key: JOB_TTL_MINUTES
+        value: 120
+      - key: PUBLIC_BASE_URL
         sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: APP_URL
+      - key: N8N_WEBHOOK_URL
         sync: false
       - key: NUM_CLIPS
-        value: 5
+        value: 3
       - key: CLIP_LENGTH_MIN
-        value: 8
+        value: 30
       - key: CLIP_LENGTH_MAX
-        value: 20
+        value: 60
       - key: CAPTION_COLOR
         value: "#FFD600"
       - key: CAPTION_FONT
         value: Impact
-      - key: DEBUG
+      - key: USE_BLUR_BACKGROUND
         value: false
+      - key: DEBUG
+        value: true
