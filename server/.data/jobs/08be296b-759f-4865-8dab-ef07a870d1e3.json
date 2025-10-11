@@ -1,0 +1,42 @@
+{
+  "jobId": "08be296b-759f-4865-8dab-ef07a870d1e3",
+  "status": "complete",
+  "stage": "complete",
+  "progress": 100,
+  "createdAt": "2025-10-11T20:19:36.052Z",
+  "updatedAt": "2025-10-11T20:20:57.575Z",
+  "email": "test@example.com",
+  "youtubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "clips": [
+    {
+      "id": "bb95ee04-5234-4327-9b48-09fe68100317",
+      "filename": "clip-bb95ee04-5234-4327-9b48-09fe68100317.mp4",
+      "url": "http://localhost:3000/temp/clip-bb95ee04-5234-4327-9b48-09fe68100317.mp4",
+      "downloadUrl": "http://localhost:3000/temp/clip-bb95ee04-5234-4327-9b48-09fe68100317.mp4",
+      "thumbnail": "",
+      "caption": "than the iPhone 6 the bendgate 2 0 rumors started up immediately and many people...",
+      "duration": 30
+    },
+    {
+      "id": "69cfa051-fec0-4609-92df-dfc2cf9380c4",
+      "filename": "clip-69cfa051-fec0-4609-92df-dfc2cf9380c4.mp4",
+      "url": "http://localhost:3000/temp/clip-69cfa051-fec0-4609-92df-dfc2cf9380c4.mp4",
+      "downloadUrl": "http://localhost:3000/temp/clip-69cfa051-fec0-4609-92df-dfc2cf9380c4.mp4",
+      "thumbnail": "",
+      "caption": "Air perfectly and it only weighs 31 7 grams which is the same as half a slice of...",
+      "duration": 30
+    },
+    {
+      "id": "fe0dc9c0-627e-4804-b10b-9f29fe2ac2ee",
+      "filename": "clip-fe0dc9c0-627e-4804-b10b-9f29fe2ac2ee.mp4",
+      "url": "http://localhost:3000/temp/clip-fe0dc9c0-627e-4804-b10b-9f29fe2ac2ee.mp4",
+      "downloadUrl": "http://localhost:3000/temp/clip-fe0dc9c0-627e-4804-b10b-9f29fe2ac2ee.mp4",
+      "thumbnail": "",
+      "caption": " Don't believe everything you've heard about the iPhone Air Right now most peopl...",
+      "duration": 31
+    }
+  ],
+  "error": null,
+  "expiresAt": 1760221557575,
+  "message": "Clips ready"
+}
