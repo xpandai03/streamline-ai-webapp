@@ -1,12 +1,12 @@
 services:
   - type: web
     name: overlap-ai-backend
-    env: node
+    env: docker
     region: oregon
     plan: free
     rootDir: server
-    buildCommand: npm install
-    startCommand: node index.js
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
         value: production
