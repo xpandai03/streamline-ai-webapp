@@ -16,39 +16,58 @@ const router = express.Router();
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'http://localhost:3002';
 
 router.post('/', async (req, res) => {
-  const { youtubeUrl, email } = req.body;
+  try {
+    logger.info('[PROCESS] POST /api/process received');
+    logger.info('[PROCESS] Request body:', JSON.stringify(req.body));
 
-  if (!youtubeUrl || !email) {
-    return res.status(400).json({ error: 'YouTube URL and email are required' });
+    const { youtubeUrl, email } = req.body;
+
+    if (!youtubeUrl || !email) {
+      logger.warn('[PROCESS] Missing required fields');
+      return res.status(400).json({
+        success: false,
+        error: 'YouTube URL and email are required'
+      });
+    }
+
+    const jobId = uuidv4();
+
+    // Initialize job with durable store
+    jobStore.create(jobId, {
+      status: 'running',
+      stage: 'download',
+      progress: 5,
+      message: 'Starting...',
+      email,
+      youtubeUrl,
+      createdAt: new Date().toISOString()
+    });
+
+    logger.info(`[INFO] Job ${jobId} created for URL: ${youtubeUrl}`);
+
+    // Start processing asynchronously
+    processVideo(jobId, youtubeUrl, email).catch(err => {
+      logger.error(`[ERROR] Job ${jobId} failed:`, err.message);
+      logger.error(`[ERROR] Stack trace:`, err.stack);
+
+      // Mark job as failed (sets expiry automatically)
+      jobStore.fail(jobId, err.message);
+
+      // Cleanup temp files but keep job record
+      fileStore.cleanupJob(jobId);
+    });
+
+    logger.info(`[PROCESS] Returning jobId: ${jobId}`);
+    res.json({ success: true, jobId });
+  } catch (error) {
+    logger.error('[PROCESS ERROR] Route handler caught error:', error);
+    logger.error('[PROCESS ERROR] Stack:', error.stack);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
-
-  const jobId = uuidv4();
-
-  // Initialize job with durable store
-  jobStore.create(jobId, {
-    status: 'running',
-    stage: 'download',
-    progress: 5,
-    message: 'Starting...',
-    email,
-    youtubeUrl,
-    createdAt: new Date().toISOString()
-  });
-
-  logger.info(`[INFO] Job ${jobId} created for URL: ${youtubeUrl}`);
-
-  // Start processing asynchronously
-  processVideo(jobId, youtubeUrl, email).catch(err => {
-    logger.error(`[ERROR] Job ${jobId} failed:`, err.message);
-
-    // Mark job as failed (sets expiry automatically)
-    jobStore.fail(jobId, err.message);
-
-    // Cleanup temp files but keep job record
-    fileStore.cleanupJob(jobId);
-  });
-
-  res.json({ jobId });
 });
 
 async function processVideo(jobId, youtubeUrl, email) {

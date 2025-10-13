@@ -20,7 +20,8 @@ async function downloadVideo(youtubeUrl) {
   const outputDir = path.dirname(outputTemplate);
 
   try {
-    logger.info(`Downloading video: ${youtubeUrl}`);
+    logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
+    logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
     // Download with yt-dlp
     const command = `yt-dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
@@ -29,11 +30,17 @@ async function downloadVideo(youtubeUrl) {
       -o "${outputTemplate}" \
       "${youtubeUrl}"`;
 
+    logger.info(`[DOWNLOADER] Executing command: ${command}`);
+
     const { stdout, stderr } = await execAsync(command, {
       maxBuffer: 10 * 1024 * 1024
     });
 
-    logger.debug('yt-dlp output:', stdout);
+    logger.info('[DOWNLOADER] yt-dlp command completed successfully');
+    logger.debug('[DOWNLOADER] yt-dlp stdout:', stdout);
+    if (stderr) {
+      logger.debug('[DOWNLOADER] yt-dlp stderr:', stderr);
+    }
 
     // Find downloaded file
     const files = await fs.readdir(outputDir);
@@ -53,8 +60,10 @@ async function downloadVideo(youtubeUrl) {
     }
 
     // Get metadata
+    logger.info('[DOWNLOADER] Extracting metadata with ffprobe...');
     const metadataCommand = `ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
     const { stdout: metadataJson } = await execAsync(metadataCommand);
+    logger.info('[DOWNLOADER] ffprobe command completed successfully');
     const metadata = JSON.parse(metadataJson);
 
     const duration = parseFloat(metadata.format.duration || 0);
@@ -71,7 +80,18 @@ async function downloadVideo(youtubeUrl) {
       }
     };
   } catch (error) {
-    logger.error('Download failed:', error);
+    logger.error('[DOWNLOADER] Download failed:', error.message);
+    logger.error('[DOWNLOADER] Error stack:', error.stack);
+    logger.error('[DOWNLOADER] Error code:', error.code);
+
+    // Provide more specific error messages
+    if (error.message.includes('yt-dlp') || error.code === 'ENOENT') {
+      throw new Error('yt-dlp is not installed or not in PATH. Video download failed.');
+    }
+    if (error.message.includes('ffprobe')) {
+      throw new Error('ffprobe is not installed or not in PATH. Metadata extraction failed.');
+    }
+
     throw new Error(`Download failed: ${error.message}`);
   }
 }

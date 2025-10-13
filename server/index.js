@@ -12,6 +12,34 @@ const jobStore = require('./utils/jobStore');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Check dependencies on startup
+logger.info('[STARTUP] Checking system dependencies...');
+const { execSync } = require('child_process');
+
+try {
+  const ytdlpVersion = execSync('yt-dlp --version', { encoding: 'utf8' }).trim();
+  logger.info(`[STARTUP] ✅ yt-dlp found: ${ytdlpVersion}`);
+} catch (error) {
+  logger.error('[STARTUP] ❌ yt-dlp NOT FOUND - video downloads will fail!');
+  logger.error('[STARTUP] Error:', error.message);
+}
+
+try {
+  const ffmpegVersion = execSync('ffmpeg -version', { encoding: 'utf8' }).split('\n')[0];
+  logger.info(`[STARTUP] ✅ ffmpeg found: ${ffmpegVersion}`);
+} catch (error) {
+  logger.error('[STARTUP] ❌ ffmpeg NOT FOUND - video processing will fail!');
+  logger.error('[STARTUP] Error:', error.message);
+}
+
+try {
+  const ffprobeVersion = execSync('ffprobe -version', { encoding: 'utf8' }).split('\n')[0];
+  logger.info(`[STARTUP] ✅ ffprobe found: ${ffprobeVersion}`);
+} catch (error) {
+  logger.error('[STARTUP] ❌ ffprobe NOT FOUND - metadata extraction will fail!');
+  logger.error('[STARTUP] Error:', error.message);
+}
+
 // Load persisted jobs on startup
 logger.info('[STARTUP] Loading persisted jobs from disk...');
 jobStore.loadAll();
@@ -58,10 +86,31 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Error handling
+// 404 handler for undefined routes
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    error: 'Route not found',
+    path: req.path
+  });
+});
+
+// Global error handler - MUST return JSON, never HTML
 app.use((err, req, res, next) => {
-  logger.error('Server error:', err);
-  res.status(500).json({ error: err.message || 'Internal server error' });
+  logger.error('[GLOBAL ERROR HANDLER] Caught error:', err);
+  logger.error('[GLOBAL ERROR HANDLER] Stack:', err.stack);
+  logger.error('[GLOBAL ERROR HANDLER] Request:', {
+    method: req.method,
+    path: req.path,
+    body: req.body
+  });
+
+  // Ensure we always return JSON
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
 });
 
 // Start server
