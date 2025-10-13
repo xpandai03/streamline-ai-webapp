@@ -1,44 +1,25 @@
-# Use official Node 18 image
-FROM node:18-slim
+# Use Node 18 base image
+FROM node:18
 
-# Install system dependencies: Python3, pip, ffmpeg, and yt-dlp
+# Install Python, pip, ffmpeg, and yt-dlp
 RUN apt-get update && \
-    apt-get install -y \
-    python3 \
-    python3-pip \
-    ffmpeg \
-    && pip3 install --no-cache-dir -U yt-dlp \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify installations
-RUN node --version && \
-    python3 --version && \
-    ffmpeg -version && \
-    yt-dlp --version
+    apt-get install -y python3 python3-pip ffmpeg && \
+    pip3 install -U yt-dlp && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files first (for better Docker layer caching)
+# Copy dependencies and install them
 COPY package*.json ./
+RUN npm install
 
-# Install Node dependencies
-RUN npm install --production
-
-# Copy the rest of the backend source code
+# Copy the rest of the app
 COPY . .
 
-# Create directories for temp files and job storage
-RUN mkdir -p .data/jobs && \
-    mkdir -p ../public/temp
+# Bind to Render dynamic port
+ENV PORT=10000
+EXPOSE 10000
 
-# Expose port (Render will map this)
-EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3001/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
-
-# Start the Express server
+# Start backend server
 CMD ["node", "index.js"]
