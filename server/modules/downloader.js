@@ -137,6 +137,10 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           --password "" \
           --cache-dir /app/.cache \
           --proxy "${proxyUrl}" \
+          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+          --add-header "Accept-Language:en-US,en;q=0.9" \
+          --add-header "Accept-Encoding:gzip, deflate, br" \
+          --add-header "Referer:https://www.youtube.com/" \
           --sleep-interval 2 \
           --limit-rate 1M \
           --retries 3 \
@@ -150,6 +154,10 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
       else if (proxyUrl) {
         command = `python3 -m yt_dlp \
           --proxy "${proxyUrl}" \
+          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+          --add-header "Accept-Language:en-US,en;q=0.9" \
+          --add-header "Accept-Encoding:gzip, deflate, br" \
+          --add-header "Referer:https://www.youtube.com/" \
           --sleep-interval 2 \
           --limit-rate 1M \
           --retries 3 \
@@ -165,6 +173,9 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           --username oauth2 \
           --password "" \
           --cache-dir /app/.cache \
+          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+          --add-header "Accept-Language:en-US,en;q=0.9" \
+          --add-header "Referer:https://www.youtube.com/" \
           -f "${format}" \
           --merge-output-format mp4 \
           --no-playlist \
@@ -175,15 +186,21 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
       else if (hasCookies) {
         command = `python3 -m yt_dlp \
           --cookies "${cookiesFile}" \
+          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+          --add-header "Accept-Language:en-US,en;q=0.9" \
+          --add-header "Referer:https://www.youtube.com/" \
           -f "${format}" \
           --merge-output-format mp4 \
           --no-playlist \
           -o "${outputTemplate}" \
           "${youtubeUrl}"`;
       }
-      // Method 5: No auth (default web client)
+      // Method 5: No auth (default web client with spoofing)
       else {
         command = `python3 -m yt_dlp \
+          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+          --add-header "Accept-Language:en-US,en;q=0.9" \
+          --add-header "Referer:https://www.youtube.com/" \
           -f "${format}" \
           --merge-output-format mp4 \
           --no-playlist \

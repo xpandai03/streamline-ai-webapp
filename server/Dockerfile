@@ -1,11 +1,15 @@
-# Use Node 18 base image with Debian Bullseye (includes Python 3.11 support)
-FROM node:18-bullseye
+# Use Node 18 base image with Debian Bookworm (Python 3.11)
+FROM node:18-bookworm
 
 # Install system dependencies: Python 3.11, pip, and ffmpeg
-# Python 3.11 provides better performance and latest security patches
+# Python 3.11 required by yt-dlp (3.9 deprecated)
+# Bookworm ships with Python 3.11 by default
 RUN apt-get update && \
     apt-get install -y python3 python3-pip ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Verify Python version (should be 3.11+)
+RUN python3 --version
 
 # Install yt-dlp Python module (used via 'python3 -m yt_dlp')
 # Install directly from GitHub master branch for LATEST bot bypass fixes
