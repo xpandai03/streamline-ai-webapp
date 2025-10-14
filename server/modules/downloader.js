@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs').promises;
 const path = require('path');
@@ -8,6 +8,24 @@ const logger = require('../utils/logger');
 const execAsync = promisify(exec);
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+
+// Find absolute paths to yt-dlp and ffprobe at startup
+let YTDLP_PATH = 'yt-dlp';
+let FFPROBE_PATH = 'ffprobe';
+
+try {
+  YTDLP_PATH = execSync('which yt-dlp', { encoding: 'utf8' }).trim();
+  logger.info(`[DOWNLOADER] Found yt-dlp at: ${YTDLP_PATH}`);
+} catch (e) {
+  logger.warn('[DOWNLOADER] Could not find yt-dlp with which, using fallback');
+}
+
+try {
+  FFPROBE_PATH = execSync('which ffprobe', { encoding: 'utf8' }).trim();
+  logger.info(`[DOWNLOADER] Found ffprobe at: ${FFPROBE_PATH}`);
+} catch (e) {
+  logger.warn('[DOWNLOADER] Could not find ffprobe with which, using fallback');
+}
 
 async function downloadVideo(youtubeUrl) {
   // Validate YouTube URL
@@ -23,8 +41,8 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
-    // Download with yt-dlp
-    const command = `yt-dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+    // Download with yt-dlp using absolute path
+    const command = `${YTDLP_PATH} -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
       --merge-output-format mp4 \
       --no-playlist \
       -o "${outputTemplate}" \
@@ -62,7 +80,7 @@ async function downloadVideo(youtubeUrl) {
 
     // Get metadata
     logger.info('[DOWNLOADER] Extracting metadata with ffprobe...');
-    const metadataCommand = `ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
+    const metadataCommand = `${FFPROBE_PATH} -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
     const { stdout: metadataJson } = await execAsync(metadataCommand, {
       env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
     });
