@@ -80,6 +80,113 @@ async function checkCookieFile() {
 checkOAuthCache().catch(err => logger.error('[DOWNLOADER] OAuth cache check failed:', err));
 checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check failed:', err));
 
+/**
+ * Download video with automatic format fallback
+ * Tries multiple format options to prevent "Requested format is not available" errors
+ * @param {string} youtubeUrl - YouTube video URL
+ * @param {string} outputTemplate - Output file path template
+ * @param {object} options - Download options (proxy, auth method, etc.)
+ * @returns {Promise<void>}
+ */
+async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
+  const { proxyUrl, useOAuth, cookiesFile, hasCookies } = options;
+
+  // Define format fallback priority
+  // 1. Best 1080p video + best audio (ideal quality)
+  // 2. Format 22: 720p MP4 with audio (reliable fallback)
+  // 3. Format 18: 360p MP4 with audio (last resort, works almost everywhere)
+  const formats = [
+    'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+    '22',
+    '18'
+  ];
+
+  let lastError = null;
+
+  for (const format of formats) {
+    try {
+      logger.info(`[DOWNLOADER] Trying format: ${format}`);
+
+      // Build command based on authentication method
+      let command;
+
+      if (proxyUrl) {
+        // Proxy with iOS client
+        command = `python3 -m yt_dlp \
+          --extractor-args "youtube:player_client=ios" \
+          --proxy "${proxyUrl}" \
+          --sleep-interval 2 \
+          --limit-rate 1M \
+          --retries 3 \
+          -f "${format}" \
+          --merge-output-format mp4 \
+          --no-playlist \
+          -o "${outputTemplate}" \
+          "${youtubeUrl}"`;
+      } else if (useOAuth) {
+        // OAuth authentication
+        command = `python3 -m yt_dlp \
+          --username oauth2 \
+          --password "" \
+          --cache-dir /app/.cache \
+          -f "${format}" \
+          --merge-output-format mp4 \
+          --no-playlist \
+          -o "${outputTemplate}" \
+          "${youtubeUrl}"`;
+      } else if (hasCookies) {
+        // Cookie-based authentication
+        command = `python3 -m yt_dlp \
+          --cookies "${cookiesFile}" \
+          -f "${format}" \
+          --merge-output-format mp4 \
+          --no-playlist \
+          -o "${outputTemplate}" \
+          "${youtubeUrl}"`;
+      } else {
+        // iOS client bypass (no auth)
+        command = `python3 -m yt_dlp \
+          --extractor-args "youtube:player_client=ios" \
+          --extractor-args "youtube:player_skip=webpage,configs" \
+          -f "${format}" \
+          --merge-output-format mp4 \
+          --no-playlist \
+          -o "${outputTemplate}" \
+          "${youtubeUrl}"`;
+      }
+
+      const { stdout, stderr } = await execAsync(command, {
+        maxBuffer: 10 * 1024 * 1024
+      });
+
+      logger.info(`[DOWNLOADER] ✅ Download succeeded with format: ${format}`);
+
+      if (stdout) {
+        logger.debug('[DOWNLOADER] stdout:', stdout);
+      }
+      if (stderr) {
+        logger.debug('[DOWNLOADER] stderr:', stderr);
+      }
+
+      return; // Success - exit the function
+
+    } catch (error) {
+      lastError = error;
+      logger.warn(`[DOWNLOADER] Format ${format} failed: ${error.message}`);
+
+      // If this is not the last format, continue to next fallback
+      if (formats.indexOf(format) < formats.length - 1) {
+        logger.info(`[DOWNLOADER] Trying next fallback format...`);
+        continue;
+      }
+    }
+  }
+
+  // All formats failed
+  logger.error('[DOWNLOADER] All format fallbacks exhausted');
+  throw new Error(`All formats failed. Last error: ${lastError?.message || 'Unknown error'}`);
+}
+
 async function downloadVideo(youtubeUrl) {
   // Validate YouTube URL
   const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
@@ -94,9 +201,8 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
-    // Build yt-dlp command with authentication fallback strategy
+    // Determine authentication method
     // Priority: Proxy (99% success) → OAuth (95% success) → Cookies (90% success) → iOS client (85% success)
-    let command;
     const proxyUrl = process.env.YTDLP_PROXY;
     const useOAuth = process.env.YTDLP_USE_OAUTH === 'true';
     const cookiesFile = process.env.YTDLP_COOKIES_FILE || '/app/cookies.txt';
@@ -110,76 +216,26 @@ async function downloadVideo(youtubeUrl) {
       // Cookies file doesn't exist
     }
 
+    // Log authentication method being used
     if (proxyUrl) {
-      // Method 1: Residential proxy with iOS client (highest reliability, 99% success)
-      // Routes requests through residential IP to bypass cloud IP restrictions
-      // Combines proxy with iOS player client for maximum bot bypass effectiveness
-      // Requires YTDLP_PROXY env var: http://user:pass@proxy-host:port
-      logger.info('[DOWNLOADER] Using residential proxy');
-      logger.info(`[DOWNLOADER] Using proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials in logs
-      command = `python3 -m yt_dlp \
-        --extractor-args "youtube:player_client=ios" \
-        --proxy "${proxyUrl}" \
-        --sleep-interval 2 \
-        --limit-rate 1M \
-        --retries 3 \
-        -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-        --merge-output-format mp4 \
-        --no-playlist \
-        -o "${outputTemplate}" \
-        "${youtubeUrl}"`;
+      logger.info('[DOWNLOADER] Using residential proxy with iOS client');
+      logger.info(`[DOWNLOADER] Using proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials
     } else if (useOAuth) {
-      // Method 2: OAuth authentication (95% success)
-      // Requires one-time setup: python3 -m yt_dlp --username oauth2 --password '' --cache-dir /app/.cache [test-url]
       logger.info('[DOWNLOADER] Using OAuth authentication method');
-      command = `python3 -m yt_dlp \
-        --username oauth2 \
-        --password "" \
-        --cache-dir /app/.cache \
-        -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-        --merge-output-format mp4 \
-        --no-playlist \
-        -o "${outputTemplate}" \
-        "${youtubeUrl}"`;
     } else if (hasCookies) {
-      // Method 3: Cookie-based authentication (fallback, 90% success)
-      // Requires cookies.txt exported from authenticated browser session
       logger.info('[DOWNLOADER] Using cookie-based authentication method');
-      command = `python3 -m yt_dlp \
-        --cookies "${cookiesFile}" \
-        -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-        --merge-output-format mp4 \
-        --no-playlist \
-        -o "${outputTemplate}" \
-        "${youtubeUrl}"`;
     } else {
-      // Method 4: iOS client bypass (fallback for no auth, 85% success)
-      // No authentication, relies on iOS client having lighter restrictions
       logger.warn('[DOWNLOADER] No authentication available, using iOS client bypass');
       logger.warn('[DOWNLOADER] For better reliability, enable proxy or OAuth');
-      command = `python3 -m yt_dlp \
-        --extractor-args "youtube:player_client=ios" \
-        --extractor-args "youtube:player_skip=webpage,configs" \
-        -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-        --merge-output-format mp4 \
-        --no-playlist \
-        -o "${outputTemplate}" \
-        "${youtubeUrl}"`;
     }
 
-    logger.info(`[DOWNLOADER] Executing download command`);
-
-    const { stdout, stderr } = await execAsync(command, {
-      maxBuffer: 10 * 1024 * 1024
+    // Download with automatic format fallback
+    await downloadWithFallback(youtubeUrl, outputTemplate, {
+      proxyUrl,
+      useOAuth,
+      cookiesFile,
+      hasCookies
     });
-
-    logger.info('[DOWNLOADER] ✅ Download completed successfully');
-    if (stdout) {
-      logger.debug('[DOWNLOADER] stdout:', stdout);
-    }
-    if (stderr) {
-      logger.debug('[DOWNLOADER] stderr:', stderr);
-    }
 
     // Find downloaded file
     const files = await fs.readdir(outputDir);
