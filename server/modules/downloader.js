@@ -64,24 +64,74 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
-    // Download with yt-dlp via Python3 (guaranteed to work regardless of PATH)
-    const command = `python3 -m yt_dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-      --merge-output-format mp4 \
-      --no-playlist \
-      -o "${outputTemplate}" \
-      "${youtubeUrl}"`;
+    // DIAGNOSTIC: Log subprocess environment
+    try {
+      const { stdout: pathCheck } = await execAsync('echo $PATH', {
+        env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
+      });
+      logger.info(`[DIAGNOSTIC] Subprocess PATH: ${pathCheck.trim()}`);
 
-    logger.info(`[DOWNLOADER] Executing command: ${command}`);
+      const { stdout: pythonCheck } = await execAsync('python3 -c "import yt_dlp; print(yt_dlp.__version__)"', {
+        env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
+      });
+      logger.info(`[DIAGNOSTIC] Python3 can import yt_dlp: ${pythonCheck.trim()}`);
+    } catch (diagError) {
+      logger.error(`[DIAGNOSTIC] Pre-flight check failed: ${diagError.message}`);
+    }
 
-    const { stdout, stderr } = await execAsync(command, {
-      maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
-    });
+    // Triple fallback strategy: try 3 methods in sequence
+    const ytdlpCommands = [
+      {
+        name: 'Direct yt-dlp binary',
+        command: `yt-dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" --merge-output-format mp4 --no-playlist -o "${outputTemplate}" "${youtubeUrl}"`
+      },
+      {
+        name: 'Python3 module invocation',
+        command: `python3 -m yt_dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" --merge-output-format mp4 --no-playlist -o "${outputTemplate}" "${youtubeUrl}"`
+      },
+      {
+        name: 'Absolute path via symlink',
+        command: `/usr/bin/yt-dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" --merge-output-format mp4 --no-playlist -o "${outputTemplate}" "${youtubeUrl}"`
+      }
+    ];
 
-    logger.info('[DOWNLOADER] yt-dlp command completed successfully');
-    logger.debug('[DOWNLOADER] yt-dlp stdout:', stdout);
-    if (stderr) {
-      logger.debug('[DOWNLOADER] yt-dlp stderr:', stderr);
+    let lastError = null;
+    let stdout = null;
+    let stderr = null;
+
+    for (const { name, command } of ytdlpCommands) {
+      try {
+        logger.info(`[DOWNLOADER] Trying method: ${name}`);
+        logger.info(`[DOWNLOADER] Command: ${command}`);
+
+        const result = await execAsync(command, {
+          maxBuffer: 10 * 1024 * 1024,
+          env: { ...process.env, PATH: '/usr/local/bin:/usr/bin:/bin' }
+        });
+
+        stdout = result.stdout;
+        stderr = result.stderr;
+
+        logger.info(`[DOWNLOADER] ✅ SUCCESS with method: ${name}`);
+        logger.debug('[DOWNLOADER] stdout:', stdout);
+        if (stderr) {
+          logger.debug('[DOWNLOADER] stderr:', stderr);
+        }
+
+        // Success! Break out of loop
+        lastError = null;
+        break;
+      } catch (error) {
+        logger.warn(`[DOWNLOADER] ❌ Method "${name}" failed: ${error.message}`);
+        logger.debug(`[DOWNLOADER] Error details:`, error);
+        lastError = error;
+        // Continue to next method
+      }
+    }
+
+    // If all methods failed, throw the last error
+    if (lastError) {
+      throw lastError;
     }
 
     // Find downloaded file
