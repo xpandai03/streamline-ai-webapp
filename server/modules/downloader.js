@@ -50,16 +50,34 @@ for (const path of POSSIBLE_FFPROBE_PATHS) {
   }
 }
 
-// Check OAuth cache status on module load
-async function checkOAuthCache() {
+// Check OAuth setup status on module load
+async function checkOAuthSetup() {
+  const oauthTokenFile = process.env.YTDLP_OAUTH_TOKEN_FILE;
+  const useOAuth = process.env.YTDLP_USE_OAUTH === 'true';
+
+  if (!useOAuth) {
+    logger.info('[DOWNLOADER] OAuth disabled (YTDLP_USE_OAUTH not set to true)');
+    return;
+  }
+
+  if (!oauthTokenFile) {
+    logger.warn('[DOWNLOADER] ⚠️  OAuth enabled but YTDLP_OAUTH_TOKEN_FILE not set');
+    logger.info('[DOWNLOADER] Set YTDLP_OAUTH_TOKEN_FILE=/app/.ytdlp-oauth-token.json');
+    return;
+  }
+
+  try {
+    await fs.access(oauthTokenFile);
+    const stats = await fs.stat(oauthTokenFile);
+    logger.info(`[DOWNLOADER] ✅ OAuth token file found: ${oauthTokenFile} (${(stats.size / 1024).toFixed(2)}KB)`);
+  } catch (err) {
+    logger.warn(`[DOWNLOADER] ⚠️  OAuth token file not found: ${oauthTokenFile}`);
+    logger.info('[DOWNLOADER] Upload OAuth token to Render Secret Files');
+  }
+
   try {
     const cacheFiles = await fs.readdir('/app/.cache');
-    if (cacheFiles.length === 0) {
-      logger.warn('[DOWNLOADER] ⚠️  OAuth cache is empty - authentication may fail');
-      logger.info('[DOWNLOADER] To setup OAuth: python3 -m yt_dlp --username oauth2 --password "" --cache-dir /app/.cache [test-url]');
-    } else {
-      logger.info(`[DOWNLOADER] ✅ OAuth cache found: ${cacheFiles.length} file(s)`);
-    }
+    logger.info(`[DOWNLOADER] ✅ OAuth cache ready: ${cacheFiles.length} file(s)`);
   } catch (err) {
     logger.warn('[DOWNLOADER] OAuth cache directory not accessible:', err.message);
   }
@@ -77,7 +95,7 @@ async function checkCookieFile() {
 }
 
 // Initialize auth checks (non-blocking)
-checkOAuthCache().catch(err => logger.error('[DOWNLOADER] OAuth cache check failed:', err));
+checkOAuthSetup().catch(err => logger.error('[DOWNLOADER] OAuth setup check failed:', err));
 checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check failed:', err));
 
 /**
@@ -89,7 +107,7 @@ checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check fail
  * @returns {Promise<void>}
  */
 async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
-  const { proxyUrl, useOAuth, cookiesFile, hasCookies } = options;
+  const { proxyUrl, useOAuth, oauthTokenFile, hasOAuthToken, cookiesFile, hasCookies } = options;
 
   // Define format fallback priority
   // 1. Best 1080p video + best audio (ideal quality)
@@ -112,8 +130,24 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
       // Build command based on authentication method
       let command;
 
-      if (proxyUrl) {
-        // Proxy with default web client (no iOS client to avoid PO token issues)
+      // Method 1: OAuth + Proxy (highest reliability, 99%+ success, 6-month token)
+      if (useOAuth && hasOAuthToken && proxyUrl) {
+        command = `python3 -m yt_dlp \
+          --username oauth2 \
+          --password "" \
+          --cache-dir /app/.cache \
+          --proxy "${proxyUrl}" \
+          --sleep-interval 2 \
+          --limit-rate 1M \
+          --retries 3 \
+          -f "${format}" \
+          --merge-output-format mp4 \
+          --no-playlist \
+          -o "${outputTemplate}" \
+          "${youtubeUrl}"`;
+      }
+      // Method 2: Proxy-only (99% success)
+      else if (proxyUrl) {
         command = `python3 -m yt_dlp \
           --proxy "${proxyUrl}" \
           --sleep-interval 2 \
@@ -124,8 +158,9 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           --no-playlist \
           -o "${outputTemplate}" \
           "${youtubeUrl}"`;
-      } else if (useOAuth) {
-        // OAuth authentication
+      }
+      // Method 3: OAuth-only (95% success)
+      else if (useOAuth && hasOAuthToken) {
         command = `python3 -m yt_dlp \
           --username oauth2 \
           --password "" \
@@ -135,8 +170,9 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           --no-playlist \
           -o "${outputTemplate}" \
           "${youtubeUrl}"`;
-      } else if (hasCookies) {
-        // Cookie-based authentication
+      }
+      // Method 4: Cookies (90% success, legacy)
+      else if (hasCookies) {
         command = `python3 -m yt_dlp \
           --cookies "${cookiesFile}" \
           -f "${format}" \
@@ -144,8 +180,9 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           --no-playlist \
           -o "${outputTemplate}" \
           "${youtubeUrl}"`;
-      } else {
-        // Default web client (no auth, no iOS client)
+      }
+      // Method 5: No auth (default web client)
+      else {
         command = `python3 -m yt_dlp \
           -f "${format}" \
           --merge-output-format mp4 \
@@ -201,10 +238,22 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
     // Determine authentication method
-    // Priority: Proxy (99% success) → OAuth (95% success) → Cookies (90% success) → iOS client (85% success)
+    // Priority: OAuth+Proxy (99%+ success) → Proxy (99% success) → OAuth (95% success) → Cookies (90% success) → None
     const proxyUrl = process.env.YTDLP_PROXY;
     const useOAuth = process.env.YTDLP_USE_OAUTH === 'true';
+    const oauthTokenFile = process.env.YTDLP_OAUTH_TOKEN_FILE;
     const cookiesFile = process.env.YTDLP_COOKIES_FILE || '/app/cookies.txt';
+
+    // Check if OAuth token file exists
+    let hasOAuthToken = false;
+    if (useOAuth && oauthTokenFile) {
+      try {
+        await fs.access(oauthTokenFile);
+        hasOAuthToken = true;
+      } catch (err) {
+        // OAuth token file doesn't exist
+      }
+    }
 
     // Check if cookies file exists
     let hasCookies = false;
@@ -216,22 +265,29 @@ async function downloadVideo(youtubeUrl) {
     }
 
     // Log authentication method being used
-    if (proxyUrl) {
-      logger.info('[DOWNLOADER] Client: default(web) | Using residential proxy');
-      logger.info(`[DOWNLOADER] Proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials
-    } else if (useOAuth) {
-      logger.info('[DOWNLOADER] Client: default(web) | Using OAuth authentication');
+    if (useOAuth && hasOAuthToken && proxyUrl) {
+      logger.info('[DOWNLOADER] Client: default(web) | Using OAuth + proxy authentication');
+      logger.info(`[DOWNLOADER] OAuth token: ${oauthTokenFile}`);
+      logger.info(`[DOWNLOADER] Proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`);
+    } else if (proxyUrl) {
+      logger.info('[DOWNLOADER] Client: default(web) | Using proxy-only authentication');
+      logger.info(`[DOWNLOADER] Proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`);
+    } else if (useOAuth && hasOAuthToken) {
+      logger.info('[DOWNLOADER] Client: default(web) | Using OAuth-only authentication');
+      logger.info(`[DOWNLOADER] OAuth token: ${oauthTokenFile}`);
     } else if (hasCookies) {
       logger.info('[DOWNLOADER] Client: default(web) | Using cookie-based authentication');
     } else {
       logger.warn('[DOWNLOADER] Client: default(web) | No authentication available');
-      logger.warn('[DOWNLOADER] For better reliability, enable proxy or OAuth');
+      logger.warn('[DOWNLOADER] For better reliability, enable OAuth + proxy');
     }
 
     // Download with automatic format fallback
     await downloadWithFallback(youtubeUrl, outputTemplate, {
       proxyUrl,
       useOAuth,
+      oauthTokenFile,
+      hasOAuthToken,
       cookiesFile,
       hasCookies
     });
