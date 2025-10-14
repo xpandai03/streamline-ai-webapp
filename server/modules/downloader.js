@@ -64,8 +64,8 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
-    // Download with yt-dlp using absolute path
-    const command = `${YTDLP_PATH} -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+    // Download with yt-dlp via Python3 (guaranteed to work regardless of PATH)
+    const command = `python3 -m yt_dlp -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
       --merge-output-format mp4 \
       --no-playlist \
       -o "${outputTemplate}" \
