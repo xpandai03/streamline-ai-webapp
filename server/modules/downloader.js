@@ -33,7 +33,8 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Executing command: ${command}`);
 
     const { stdout, stderr } = await execAsync(command, {
-      maxBuffer: 10 * 1024 * 1024
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
     });
 
     logger.info('[DOWNLOADER] yt-dlp command completed successfully');
@@ -62,7 +63,9 @@ async function downloadVideo(youtubeUrl) {
     // Get metadata
     logger.info('[DOWNLOADER] Extracting metadata with ffprobe...');
     const metadataCommand = `ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
-    const { stdout: metadataJson } = await execAsync(metadataCommand);
+    const { stdout: metadataJson } = await execAsync(metadataCommand, {
+      env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin` }
+    });
     logger.info('[DOWNLOADER] ffprobe command completed successfully');
     const metadata = JSON.parse(metadataJson);
 
