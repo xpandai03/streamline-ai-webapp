@@ -95,10 +95,12 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
   // 1. Best 1080p video + best audio (ideal quality)
   // 2. Format 22: 720p MP4 with audio (reliable fallback)
   // 3. Format 18: 360p MP4 with audio (last resort, works almost everywhere)
+  // 4. Best available MP4 / any best format (final safety net)
   const formats = [
     'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
     '22',
-    '18'
+    '18',
+    'best[ext=mp4]/best'
   ];
 
   let lastError = null;
@@ -111,9 +113,8 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
       let command;
 
       if (proxyUrl) {
-        // Proxy with iOS client
+        // Proxy with default web client (no iOS client to avoid PO token issues)
         command = `python3 -m yt_dlp \
-          --extractor-args "youtube:player_client=ios" \
           --proxy "${proxyUrl}" \
           --sleep-interval 2 \
           --limit-rate 1M \
@@ -144,10 +145,8 @@ async function downloadWithFallback(youtubeUrl, outputTemplate, options = {}) {
           -o "${outputTemplate}" \
           "${youtubeUrl}"`;
       } else {
-        // iOS client bypass (no auth)
+        // Default web client (no auth, no iOS client)
         command = `python3 -m yt_dlp \
-          --extractor-args "youtube:player_client=ios" \
-          --extractor-args "youtube:player_skip=webpage,configs" \
           -f "${format}" \
           --merge-output-format mp4 \
           --no-playlist \
@@ -218,14 +217,14 @@ async function downloadVideo(youtubeUrl) {
 
     // Log authentication method being used
     if (proxyUrl) {
-      logger.info('[DOWNLOADER] Using residential proxy with iOS client');
-      logger.info(`[DOWNLOADER] Using proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials
+      logger.info('[DOWNLOADER] Client: default(web) | Using residential proxy');
+      logger.info(`[DOWNLOADER] Proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials
     } else if (useOAuth) {
-      logger.info('[DOWNLOADER] Using OAuth authentication method');
+      logger.info('[DOWNLOADER] Client: default(web) | Using OAuth authentication');
     } else if (hasCookies) {
-      logger.info('[DOWNLOADER] Using cookie-based authentication method');
+      logger.info('[DOWNLOADER] Client: default(web) | Using cookie-based authentication');
     } else {
-      logger.warn('[DOWNLOADER] No authentication available, using iOS client bypass');
+      logger.warn('[DOWNLOADER] Client: default(web) | No authentication available');
       logger.warn('[DOWNLOADER] For better reliability, enable proxy or OAuth');
     }
 
