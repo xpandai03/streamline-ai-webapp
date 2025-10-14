@@ -10,7 +10,7 @@ RUN apt-get update && \
 # Install directly from GitHub master branch for LATEST bot bypass fixes
 # PyPI version lags behind; git version has newest YouTube workarounds
 RUN pip3 install --no-cache-dir -U pip && \
-    pip3 install --no-cache-dir -U https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz
+    pip3 install --no-cache-dir -U git+https://github.com/yt-dlp/yt-dlp.git@master
 
 # Verify installation
 RUN python3 -m yt_dlp --version

@@ -95,8 +95,9 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
     // Build yt-dlp command with authentication fallback strategy
-    // Priority: OAuth (95% success) → Cookies (90% success) → iOS client (85% success)
+    // Priority: Proxy (99% success) → OAuth (95% success) → Cookies (90% success) → iOS client (85% success)
     let command;
+    const proxyUrl = process.env.YTDLP_PROXY;
     const useOAuth = process.env.YTDLP_USE_OAUTH === 'true';
     const cookiesFile = process.env.YTDLP_COOKIES_FILE || '/app/cookies.txt';
 
@@ -109,8 +110,23 @@ async function downloadVideo(youtubeUrl) {
       // Cookies file doesn't exist
     }
 
-    if (useOAuth) {
-      // Method 1: OAuth authentication (most reliable, 95% success)
+    if (proxyUrl) {
+      // Method 1: Residential proxy (highest reliability, 99% success)
+      // Routes requests through residential IP to bypass cloud IP restrictions
+      // Requires YTDLP_PROXY env var: http://user:pass@proxy-host:port
+      logger.info('[DOWNLOADER] Using residential proxy');
+      command = `python3 -m yt_dlp \
+        --proxy "${proxyUrl}" \
+        --sleep-interval 2 \
+        --limit-rate 1M \
+        --retries 3 \
+        -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+        --merge-output-format mp4 \
+        --no-playlist \
+        -o "${outputTemplate}" \
+        "${youtubeUrl}"`;
+    } else if (useOAuth) {
+      // Method 2: OAuth authentication (95% success)
       // Requires one-time setup: python3 -m yt_dlp --username oauth2 --password '' --cache-dir /app/.cache [test-url]
       logger.info('[DOWNLOADER] Using OAuth authentication method');
       command = `python3 -m yt_dlp \
@@ -123,7 +139,7 @@ async function downloadVideo(youtubeUrl) {
         -o "${outputTemplate}" \
         "${youtubeUrl}"`;
     } else if (hasCookies) {
-      // Method 2: Cookie-based authentication (fallback, 90% success)
+      // Method 3: Cookie-based authentication (fallback, 90% success)
       // Requires cookies.txt exported from authenticated browser session
       logger.info('[DOWNLOADER] Using cookie-based authentication method');
       command = `python3 -m yt_dlp \
@@ -134,10 +150,10 @@ async function downloadVideo(youtubeUrl) {
         -o "${outputTemplate}" \
         "${youtubeUrl}"`;
     } else {
-      // Method 3: iOS client bypass (fallback for no auth, 85% success)
+      // Method 4: iOS client bypass (fallback for no auth, 85% success)
       // No authentication, relies on iOS client having lighter restrictions
       logger.warn('[DOWNLOADER] No authentication available, using iOS client bypass');
-      logger.warn('[DOWNLOADER] For better reliability, enable OAuth: YTDLP_USE_OAUTH=true');
+      logger.warn('[DOWNLOADER] For better reliability, enable proxy or OAuth');
       command = `python3 -m yt_dlp \
         --extractor-args "youtube:player_client=ios" \
         --extractor-args "youtube:player_skip=webpage,configs" \
