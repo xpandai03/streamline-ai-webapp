@@ -29,6 +29,9 @@ RUN npm install
 # Copy the rest of the app
 COPY . .
 
+# Set cookie file environment variable (file will be provided via Render Secret Files)
+ENV YTDLP_COOKIES_FILE=/app/cookies.txt
+
 # Bind to Render dynamic port
 ENV PORT=10000
 EXPOSE 10000

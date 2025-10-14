@@ -65,8 +65,20 @@ async function checkOAuthCache() {
   }
 }
 
-// Initialize OAuth cache check (non-blocking)
-checkOAuthCache().catch(err => logger.error('[DOWNLOADER] Cache check failed:', err));
+// Check cookie file status on module load
+async function checkCookieFile() {
+  const cookiesFile = process.env.YTDLP_COOKIES_FILE || '/app/cookies.txt';
+  try {
+    const stats = await fs.stat(cookiesFile);
+    logger.info(`[DOWNLOADER] ✅ Cookie file found: ${cookiesFile} (${(stats.size / 1024).toFixed(2)}KB)`);
+  } catch (err) {
+    logger.warn('[DOWNLOADER] ⚠️  Cookie file not found:', cookiesFile);
+  }
+}
+
+// Initialize auth checks (non-blocking)
+checkOAuthCache().catch(err => logger.error('[DOWNLOADER] OAuth cache check failed:', err));
+checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check failed:', err));
 
 async function downloadVideo(youtubeUrl) {
   // Validate YouTube URL

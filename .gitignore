@@ -41,3 +41,8 @@ public/temp/*
 # Logs
 logs/
 *.log
+
+# Secrets and authentication
+cookies.txt
+*.cookie
+.cache/
