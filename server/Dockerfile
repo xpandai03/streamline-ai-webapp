@@ -7,9 +7,10 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp Python module (used via 'python3 -m yt_dlp')
-# Install from GitHub main branch for latest bot bypass features
+# Install directly from GitHub master branch for LATEST bot bypass fixes
+# PyPI version lags behind; git version has newest YouTube workarounds
 RUN pip3 install --no-cache-dir -U pip && \
-    pip3 install --no-cache-dir -U yt-dlp
+    pip3 install --no-cache-dir -U https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz
 
 # Verify installation
 RUN python3 -m yt_dlp --version

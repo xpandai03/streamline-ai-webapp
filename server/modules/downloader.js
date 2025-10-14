@@ -64,27 +64,18 @@ async function downloadVideo(youtubeUrl) {
     logger.info(`[DOWNLOADER] Starting download for: ${youtubeUrl}`);
     logger.info(`[DOWNLOADER] Output template: ${outputTemplate}`);
 
-    // Use python3 -m yt_dlp directly (most reliable method)
-    // This works because python3 is installed via apt-get (guaranteed PATH)
-    // and yt_dlp module is installed in Python site-packages
-    //
-    // Additional flags to bypass YouTube bot detection:
-    // --user-agent: Mimic a real browser
-    // --extractor-args "youtube:player_client=android": Use Android client (less restrictions)
-    // --no-check-certificates: Skip SSL verification issues
-    // --geo-bypass: Attempt to bypass geographic restrictions
+    // Use python3 -m yt_dlp with advanced bot bypass
+    // Strategy: Use iOS client which has the least restrictions
     const command = `python3 -m yt_dlp \
       -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
       --merge-output-format mp4 \
       --no-playlist \
-      --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-      --extractor-args "youtube:player_client=android,web" \
-      --no-check-certificates \
-      --geo-bypass \
+      --extractor-args "youtube:player_client=ios" \
+      --extractor-args "youtube:player_skip=webpage,configs" \
       -o "${outputTemplate}" \
       "${youtubeUrl}"`;
 
-    logger.info(`[DOWNLOADER] Executing: python3 -m yt_dlp with bot bypass flags`);
+    logger.info(`[DOWNLOADER] Executing: python3 -m yt_dlp with iOS client bypass`);
 
     const { stdout, stderr } = await execAsync(command, {
       maxBuffer: 10 * 1024 * 1024
