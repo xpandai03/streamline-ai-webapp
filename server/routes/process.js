@@ -208,27 +208,36 @@ async function processVideo(jobId, youtubeUrl, email) {
     logger.info(`[INFO] Job ${jobId} completed successfully. TTL: ${process.env.JOB_TTL_MINUTES || 120} minutes`);
 
     // Send webhook notification if configured
-    if (process.env.N8N_WEBHOOK_URL) {
+    if (process.env.N8N_WEBHOOK_URL && process.env.N8N_WEBHOOK_URL.trim() !== '') {
       try {
-        const webhookPayload = {
-          jobId,
-          status: 'complete',
-          email,
-          youtubeUrl,
-          clips: clipsWithUrls,
-          completedAt: new Date().toISOString()
-        };
+        // Safety check: prevent self-referential webhooks that cause loops
+        const webhookUrl = process.env.N8N_WEBHOOK_URL;
+        const currentHost = process.env.RENDER_EXTERNAL_HOSTNAME || 'streamline-ai-backend';
 
-        const webhookResponse = await fetch(process.env.N8N_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload)
-        });
-
-        if (webhookResponse.ok) {
-          logger.info(`[INFO] Webhook notification sent to n8n for job ${jobId}`);
+        if (webhookUrl.includes(currentHost)) {
+          logger.warn(`[WARN] Skipping webhook - would create loop (webhook URL contains current host: ${currentHost})`);
         } else {
-          logger.warn(`[WARN] Webhook failed with status ${webhookResponse.status}`);
+          const webhookPayload = {
+            jobId,
+            status: 'complete',
+            email,
+            youtubeUrl,
+            clips: clipsWithUrls,
+            completedAt: new Date().toISOString()
+          };
+
+          logger.info(`[INFO] Sending webhook to: ${webhookUrl}`);
+          const webhookResponse = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload)
+          });
+
+          if (webhookResponse.ok) {
+            logger.info(`[INFO] Webhook notification sent to n8n for job ${jobId}`);
+          } else {
+            logger.warn(`[WARN] Webhook failed with status ${webhookResponse.status}`);
+          }
         }
       } catch (webhookError) {
         logger.error(`[ERROR] Failed to send webhook: ${webhookError.message}`);
