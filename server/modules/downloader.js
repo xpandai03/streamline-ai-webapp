@@ -111,11 +111,14 @@ async function downloadVideo(youtubeUrl) {
     }
 
     if (proxyUrl) {
-      // Method 1: Residential proxy (highest reliability, 99% success)
+      // Method 1: Residential proxy with iOS client (highest reliability, 99% success)
       // Routes requests through residential IP to bypass cloud IP restrictions
+      // Combines proxy with iOS player client for maximum bot bypass effectiveness
       // Requires YTDLP_PROXY env var: http://user:pass@proxy-host:port
       logger.info('[DOWNLOADER] Using residential proxy');
+      logger.info(`[DOWNLOADER] Using proxy: ${proxyUrl.replace(/\/\/.*:.*@/, '//***:***@')}`); // Mask credentials in logs
       command = `python3 -m yt_dlp \
+        --extractor-args "youtube:player_client=ios" \
         --proxy "${proxyUrl}" \
         --sleep-interval 2 \
         --limit-rate 1M \

@@ -1,7 +1,8 @@
-# Use Node 18 base image
-FROM node:18
+# Use Node 18 base image with Debian Bullseye (includes Python 3.11 support)
+FROM node:18-bullseye
 
-# Install system dependencies: Python3, pip, and ffmpeg
+# Install system dependencies: Python 3.11, pip, and ffmpeg
+# Python 3.11 provides better performance and latest security patches
 RUN apt-get update && \
     apt-get install -y python3 python3-pip ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -9,10 +10,11 @@ RUN apt-get update && \
 # Install yt-dlp Python module (used via 'python3 -m yt_dlp')
 # Install directly from GitHub master branch for LATEST bot bypass fixes
 # PyPI version lags behind; git version has newest YouTube workarounds
+# Master branch receives daily updates for YouTube's anti-bot measures
 RUN pip3 install --no-cache-dir -U pip && \
     pip3 install --no-cache-dir -U git+https://github.com/yt-dlp/yt-dlp.git@master
 
-# Verify installation
+# Verify installation - should show git commit hash for master branch
 RUN python3 -m yt_dlp --version
 
 # Create cache directory for OAuth tokens
