@@ -86,6 +86,41 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Diagnostic endpoint to check system dependencies
+app.get('/api/check-tools', (req, res) => {
+  const checks = {
+    node: process.version,
+    ytdlp: null,
+    ffmpeg: null,
+    ffprobe: null,
+    platform: process.platform,
+    arch: process.arch
+  };
+
+  try {
+    const ytdlpVersion = execSync('yt-dlp --version', { encoding: 'utf8' }).trim();
+    checks.ytdlp = ytdlpVersion;
+  } catch (error) {
+    checks.ytdlp = 'NOT FOUND';
+  }
+
+  try {
+    const ffmpegVersion = execSync('ffmpeg -version', { encoding: 'utf8' }).split('\n')[0];
+    checks.ffmpeg = ffmpegVersion;
+  } catch (error) {
+    checks.ffmpeg = 'NOT FOUND';
+  }
+
+  try {
+    const ffprobeVersion = execSync('ffprobe -version', { encoding: 'utf8' }).split('\n')[0];
+    checks.ffprobe = ffprobeVersion;
+  } catch (error) {
+    checks.ffprobe = 'NOT FOUND';
+  }
+
+  res.json(checks);
+});
+
 // 404 handler for undefined routes
 app.use((req, res, next) => {
   res.status(404).json({
