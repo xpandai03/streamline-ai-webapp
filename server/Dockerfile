@@ -15,6 +15,10 @@ RUN pip3 install --no-cache-dir -U pip && \
 # Verify installation
 RUN python3 -m yt_dlp --version
 
+# Create cache directory for OAuth tokens
+# This directory will store Google OAuth tokens for authenticated downloads
+RUN mkdir -p /app/.cache && chmod 777 /app/.cache
+
 # Set working directory
 WORKDIR /app
 
