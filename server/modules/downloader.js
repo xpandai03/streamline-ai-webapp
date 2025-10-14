@@ -9,22 +9,45 @@ const execAsync = promisify(exec);
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
-// Find absolute paths to yt-dlp and ffprobe at startup
+// Find absolute paths to yt-dlp and ffprobe
+// Try multiple common locations
+const POSSIBLE_YTDLP_PATHS = [
+  '/usr/local/bin/yt-dlp',
+  '/usr/bin/yt-dlp',
+  'yt-dlp'
+];
+
+const POSSIBLE_FFPROBE_PATHS = [
+  '/usr/bin/ffprobe',
+  '/usr/local/bin/ffprobe',
+  'ffprobe'
+];
+
 let YTDLP_PATH = 'yt-dlp';
 let FFPROBE_PATH = 'ffprobe';
 
-try {
-  YTDLP_PATH = execSync('which yt-dlp', { encoding: 'utf8' }).trim();
-  logger.info(`[DOWNLOADER] Found yt-dlp at: ${YTDLP_PATH}`);
-} catch (e) {
-  logger.warn('[DOWNLOADER] Could not find yt-dlp with which, using fallback');
+// Find yt-dlp
+for (const path of POSSIBLE_YTDLP_PATHS) {
+  try {
+    execSync(`${path} --version`, { encoding: 'utf8', stdio: 'pipe' });
+    YTDLP_PATH = path;
+    logger.info(`[DOWNLOADER] Found yt-dlp at: ${YTDLP_PATH}`);
+    break;
+  } catch (e) {
+    // Try next path
+  }
 }
 
-try {
-  FFPROBE_PATH = execSync('which ffprobe', { encoding: 'utf8' }).trim();
-  logger.info(`[DOWNLOADER] Found ffprobe at: ${FFPROBE_PATH}`);
-} catch (e) {
-  logger.warn('[DOWNLOADER] Could not find ffprobe with which, using fallback');
+// Find ffprobe
+for (const path of POSSIBLE_FFPROBE_PATHS) {
+  try {
+    execSync(`${path} -version`, { encoding: 'utf8', stdio: 'pipe' });
+    FFPROBE_PATH = path;
+    logger.info(`[DOWNLOADER] Found ffprobe at: ${FFPROBE_PATH}`);
+    break;
+  } catch (e) {
+    // Try next path
+  }
 }
 
 async function downloadVideo(youtubeUrl) {
