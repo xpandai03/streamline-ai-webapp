@@ -177,15 +177,14 @@ async function downloadVideo(youtubeUrl) {
     logger.error('[DOWNLOADER] Download failed:', error.message);
     logger.error('[DOWNLOADER] Error stack:', error.stack);
     logger.error('[DOWNLOADER] Error code:', error.code);
-
-    // Provide more specific error messages
-    if (error.message.includes('yt-dlp') || error.code === 'ENOENT') {
-      throw new Error('yt-dlp is not installed or not in PATH. Video download failed.');
+    if (error.stderr) {
+      logger.error('[DOWNLOADER] Error stderr:', error.stderr);
     }
-    if (error.message.includes('ffprobe')) {
-      throw new Error('ffprobe is not installed or not in PATH. Metadata extraction failed.');
+    if (error.stdout) {
+      logger.error('[DOWNLOADER] Error stdout:', error.stdout);
     }
 
+    // Pass through the actual error message instead of masking it
     throw new Error(`Download failed: ${error.message}`);
   }
 }
