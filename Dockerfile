@@ -4,7 +4,7 @@ FROM node:18-bullseye
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     python3.11 \
-    python3.11-pip \
+    python3-pip \
     fonts-liberation \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
