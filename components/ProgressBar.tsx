@@ -137,7 +137,7 @@ export default function ProgressBar({ jobId, onComplete, onError }: ProgressBarP
       >
         <div className="flex items-center space-x-3">
           <div className="w-2 h-2 bg-[#FFD600] rounded-full animate-pulse" />
-          <span className="text-sm text-gray-300">{status.stage.replace('_', ' ')}</span>
+          <span className="text-sm text-gray-300">{status?.stage?.replace('_', ' ')}</span>
         </div>
       </motion.div>
     </div>
