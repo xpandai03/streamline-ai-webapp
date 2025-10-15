@@ -1,16 +1,16 @@
-FROM node:18-bullseye
+FROM node:18-bookworm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    python3.11 \
+    python3 \
     python3-pip \
     fonts-liberation \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp
-RUN pip3 install yt-dlp
+RUN pip3 install --break-system-packages yt-dlp
 
 # Create app directory
 WORKDIR /app
