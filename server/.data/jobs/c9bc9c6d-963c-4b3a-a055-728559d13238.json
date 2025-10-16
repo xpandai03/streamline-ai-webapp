@@ -1,0 +1,14 @@
+{
+  "jobId": "c9bc9c6d-963c-4b3a-a055-728559d13238",
+  "status": "error",
+  "stage": "error",
+  "progress": 95,
+  "createdAt": "2025-10-16T09:19:34.386Z",
+  "updatedAt": "2025-10-16T09:22:23.782Z",
+  "email": "b@email.com",
+  "youtubeUrl": "https://www.youtube.com/watch?v=dtJ8N407brM",
+  "clips": [],
+  "error": "Email delivery failed",
+  "expiresAt": 1760614043782,
+  "message": "Sending email..."
+}

@@ -110,7 +110,7 @@ async function downloadVideoWithJs(youtubeUrl, outputTemplate, options = {}) {
   ];
   let lastError = null;
 
-  console.log(outputTemplate,"--------------------------")
+  console.log(outputTemplate)
   for (const format of formats) {
     try {
       const args = {
@@ -345,7 +345,16 @@ async function downloadVideo(youtubeUrl) {
       logger.warn('[DOWNLOADER] For better reliability, enable OAuth + proxy');
     }
 
-    await downloadVideoWithJs(youtubeUrl, outputTemplate);
+    await downloadVideoWithJs(youtubeUrl, outputTemplate,
+      
+    {  proxyUrl,
+      useOAuth,
+      oauthTokenFile,
+      hasOAuthToken,
+      cookiesFile,
+      hasCookies
+    }
+    );
     // Download with automatic format fallback
     // await downloadWithFallback(youtubeUrl, outputTemplate, {
     //   proxyUrl,
