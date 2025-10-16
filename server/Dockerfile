@@ -1,5 +1,5 @@
 # Use Node 18 base image with Debian Bookworm (Python 3.11)
-FROM node:22-bookworm
+FROM node:18-bookworm
 
 # Install system dependencies: Python 3.11, pip, and ffmpeg
 # Python 3.11 required by yt-dlp (3.9 deprecated)
@@ -11,7 +11,7 @@ RUN apt-get update && \
 # Verify Python version (should be 3.11+)
 RUN python3 --version
 
-# Install yt-dlp Python module` (used via 'python3 -m yt_dlp')
+# Install yt-dlp Python module (used via 'python3 -m yt_dlp')
 # Install directly from GitHub master branch for LATEST bot bypass fixes
 # PyPI version lags behind; git version has newest YouTube workarounds
 # Master branch receives daily updates for YouTube's anti-bot measures
