@@ -3,7 +3,7 @@ FROM node:18-bullseye
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    python3.11 \
+    python3 \
     python3-pip \
     fonts-liberation \
     fonts-dejavu-core \
