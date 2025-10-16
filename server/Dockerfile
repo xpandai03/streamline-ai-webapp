@@ -1,5 +1,5 @@
 # Use Node 18 base image with Debian Bookworm (Python 3.11)
-FROM node:18-bookworm
+FROM node:22-bookworm
 
 # Install system dependencies: Python 3.11, pip, and ffmpeg
 # Python 3.11 required by yt-dlp (3.9 deprecated)
