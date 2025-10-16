@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const fileStore = require('../utils/fileStore');
 const logger = require('../utils/logger');
+const { YtDlp } = require('ytdlp-nodejs');
 
 const execAsync = promisify(exec);
 
@@ -98,6 +99,51 @@ async function checkCookieFile() {
 checkOAuthSetup().catch(err => logger.error('[DOWNLOADER] OAuth setup check failed:', err));
 checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check failed:', err));
 
+
+async function downloadVideoWithJs(youtubeUrl, outputTemplate, options = {}) {
+  const ytdlp = new YtDlp();
+  const formats = [
+    'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+    '22',
+    '18',
+    'best[ext=mp4]/best'
+  ];
+  let lastError = null;
+
+  console.log(outputTemplate,"--------------------------")
+  for (const format of formats) {
+    try {
+      const args = {
+        output: outputTemplate,
+        format: format,
+        noPlaylist: true,
+        mergeOutputFormat: 'mp4',
+        // Add proxy, cookies, OAuth, etc. if needed from options
+        ...(options.proxyUrl && { proxy: options.proxyUrl }),
+        ...(options.cookiesFile && { cookies: options.cookiesFile }),
+        ...(options.useOAuth && options.oauthTokenFile && { username: 'oauth2', password: '', cacheDir: '/app/.cache' }),
+        onProgress: (progress) => {
+          console.log(progress);
+        }
+      };
+
+      logger.info(`[DOWNLOADER] Trying format: ${format}`);
+      const output = await ytdlp.downloadAsync(youtubeUrl, args);
+      logger.info(`[DOWNLOADER] ✅ Download succeeded with format: ${format}`);
+      logger.debug('[DOWNLOADER] yt-dlp output:', output);
+
+      return output; // Success
+    } catch (error) {
+      lastError = error;
+      logger.warn(`[DOWNLOADER] Format ${format} failed: ${error.message}`);
+      // Try next format
+    }
+  }
+
+  // All formats failed
+  logger.error('[DOWNLOADER] All format fallbacks exhausted');
+  throw new Error(`All formats failed. Last error: ${lastError?.message || 'Unknown error'}`);
+}
 /**
  * Download video with automatic format fallback
  * Tries multiple format options to prevent "Requested format is not available" errors
@@ -299,15 +345,16 @@ async function downloadVideo(youtubeUrl) {
       logger.warn('[DOWNLOADER] For better reliability, enable OAuth + proxy');
     }
 
+    await downloadVideoWithJs(youtubeUrl, outputTemplate);
     // Download with automatic format fallback
-    await downloadWithFallback(youtubeUrl, outputTemplate, {
-      proxyUrl,
-      useOAuth,
-      oauthTokenFile,
-      hasOAuthToken,
-      cookiesFile,
-      hasCookies
-    });
+    // await downloadWithFallback(youtubeUrl, outputTemplate, {
+    //   proxyUrl,
+    //   useOAuth,
+    //   oauthTokenFile,
+    //   hasOAuthToken,
+    //   cookiesFile,
+    //   hasCookies
+    // });
 
     // Find downloaded file
     const files = await fs.readdir(outputDir);
