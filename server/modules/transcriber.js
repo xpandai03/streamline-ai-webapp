@@ -142,6 +142,7 @@ async function transcribe(audioPath) {
 
         return transcript;
       } catch (error) {
+        console.log(error);
         logger.error(`[ERROR] ❌ Transcription attempt ${attempt + 1} failed:`);
         logger.error(`[ERROR] Error type: ${error.constructor.name}`);
         logger.error(`[ERROR] Error message: ${error.message}`);
