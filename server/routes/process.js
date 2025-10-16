@@ -128,6 +128,10 @@ async function processVideo(jobId, youtubeUrl, email) {
     updateJob('detect_highlights', 50, 'Finding highlights...');
     try {
       highlights = await highlightEngine.detectHighlights(transcript, metadata);
+      console.log("===== Highlights =====")
+      console.log(highlights,"=============================")
+      console.log("transcript=========")
+      console.log(transcript,"=============================")
       logger.info(`[INFO] Highlight detection returned ${highlights ? highlights.length : 0} clips`);
     } catch (error) {
       logger.error(`[ERROR] Highlight detection stage error: ${error.message}`);

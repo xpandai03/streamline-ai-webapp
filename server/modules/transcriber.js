@@ -5,9 +5,11 @@ const path = require('path');
 const OpenAI = require('openai');
 const fileStore = require('../utils/fileStore');
 const logger = require('../utils/logger');
-
+const https = require('https');
 const execAsync = promisify(exec);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const FormData = require('form-data');
+
 
 async function extractAudio(videoPath) {
   const audioPath = videoPath.replace('.mp4', '.wav');
@@ -71,9 +73,60 @@ async function compressAudio(inputPath, outputPath = null) {
   }
 }
 
+async function transcribeWithAxios(audioFilePath, apiKey, timeoutMs = 300000, attempt = 0) {
+  let axios, FormData;
+  try {
+    axios = require('axios');
+    FormData = require('form-data');
+  } catch (e) {
+    throw new Error('Required packages missing. Install with: npm install axios form-data');
+  }
+  
+  const fs = require('fs');
+  
+  // Verify file exists
+  if (!fs.existsSync(audioFilePath)) {
+    throw new Error(`Audio file not found: ${audioFilePath}`);
+  }
+  
+  const form = new FormData();
+  form.append('file', fs.createReadStream(audioFilePath));
+  form.append('model', 'whisper-1');
+  form.append('response_format', 'verbose_json');
+  form.append('timestamp_granularities[]', 'word');
+
+  try {
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/transcriptions',
+      form,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          ...form.getHeaders()
+        },
+        timeout: timeoutMs,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      throw new Error(
+        `Transcription timeout after ${timeoutMs / 1000 / 60} minutes (attempt ${attempt + 1})`
+      );
+    }
+    
+    const message = error.response?.data?.error?.message || error.message;
+    throw new Error(`Transcription failed: ${message}`);
+  }
+}
+
+
 async function transcribe(audioPath) {
-  const maxRetries = 3;
-  const timeoutMs = 600000; // 10 minutes
+  const maxRetries = 0;
+  const timeoutMs = 600000 * 10; // 10 minutes
   const startTime = Date.now();
 
   logger.info(`[INFO] 🎧 Starting transcription for: ${audioPath}`);
@@ -87,7 +140,7 @@ async function transcribe(audioPath) {
     const fileSizeMB = stats.size / 1024 / 1024;
     logger.info(`[INFO] 📏 File size: ${fileSizeMB.toFixed(2)} MB`);
 
-    if (fileSizeMB > 25) {
+    if (fileSizeMB > 0) {
       logger.info('[INFO] 🗜️ File exceeds 25MB limit, compressing...');
       processedAudioPath = await compressAudio(audioPath);
       shouldCleanup = true;
@@ -116,30 +169,7 @@ async function transcribe(audioPath) {
 
   logger.info('[INFO] 📡 Sending request to OpenAI Whisper API...');
 
-  const response = await Promise.race([
-    openai.audio.transcriptions.create({
-      file: audioStream,
-      model: 'whisper-1',
-      response_format: 'verbose_json',
-      timestamp_granularities: ['word']
-    }).finally(() => {
-      // Ensure stream is closed
-      if (!audioStream.destroyed) {
-        audioStream.destroy();
-      }
-    }),
-    new Promise((_, reject) =>
-      setTimeout(() => {
-        // Close stream on timeout
-        if (!audioStream.destroyed) {
-          audioStream.destroy();
-        }
-        reject(new Error(
-          `Transcription timeout after ${timeoutMs / 1000 / 60} minutes (attempt ${attempt + 1})`
-        ));
-      }, timeoutMs)
-    )
-  ]);
+  const response = await transcribeWithAxios(processedAudioPath, process.env.OPENAI_API_KEY, timeoutMs, attempt);
 
   const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
   logger.info(`[INFO] ✅ Stage: transcribe ✅ (duration: ${elapsedSeconds}s)`);
