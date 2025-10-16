@@ -104,43 +104,65 @@ async function transcribe(audioPath) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         logger.info(`[INFO] Transcription attempt ${attempt + 1}/${maxRetries + 1}`);
-        logger.info(`[INFO] 🔑 OpenAI key present: ${!!process.env.OPENAI_API_KEY}`);
+  logger.info(`[INFO] 🔑 OpenAI key present: ${!!process.env.OPENAI_API_KEY}`);
 
-        const audioStream = fs.createReadStream(processedAudioPath);
+  const audioStream = fs.createReadStream(processedAudioPath);
+  
+  // Handle stream errors
+  audioStream.on('error', (err) => {
+    logger.error(`[ERROR] Audio stream error: ${err.message}`);
+    throw err;
+  });
 
-        logger.info('[INFO] 📡 Sending request to OpenAI Whisper API...');
+  logger.info('[INFO] 📡 Sending request to OpenAI Whisper API...');
 
-        const response = await Promise.race([
-          openai.audio.transcriptions.create({
-            file: audioStream,
-            model: 'whisper-1',
-            response_format: 'verbose_json',
-            timestamp_granularities: ['word']
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Transcription timeout after 10 minutes')), timeoutMs)
-          )
-        ]);
-
-        const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-        logger.info(`[INFO] ✅ Stage: transcribe ✅ (duration: ${elapsedSeconds}s)`);
-
-        if (!response.words || response.words.length === 0) {
-          throw new Error('Transcription returned no words');
+  const response = await Promise.race([
+    openai.audio.transcriptions.create({
+      file: audioStream,
+      model: 'whisper-1',
+      response_format: 'verbose_json',
+      timestamp_granularities: ['word']
+    }).finally(() => {
+      // Ensure stream is closed
+      if (!audioStream.destroyed) {
+        audioStream.destroy();
+      }
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => {
+        // Close stream on timeout
+        if (!audioStream.destroyed) {
+          audioStream.destroy();
         }
+        reject(new Error(
+          `Transcription timeout after ${timeoutMs / 1000 / 60} minutes (attempt ${attempt + 1})`
+        ));
+      }, timeoutMs)
+    )
+  ]);
 
-        logger.info(`[INFO] ✅ Transcription complete: ${response.words.length} words`);
+  const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+  logger.info(`[INFO] ✅ Stage: transcribe ✅ (duration: ${elapsedSeconds}s)`);
 
-        const transcript = {
-          text: response.text,
-          words: response.words.map(w => ({
-            start: w.start,
-            end: w.end,
-            text: w.word.trim()
-          }))
-        };
+  if (!response.words || response.words.length === 0) {
+    throw new Error('Transcription returned no words');
+  }
 
-        return transcript;
+  logger.info(`[INFO] ✅ Transcription complete: ${response.words.length} words`);
+
+  const transcript = {
+    text: response.text,
+    words: response.words.map(w => ({
+      start: w.start,
+      end: w.end,
+      text: w.word.trim()
+    })),
+    duration: response.duration, // Include audio duration if available
+    language: response.language  // Include detected language if available
+  };
+
+  return transcript;
+
       } catch (error) {
         console.log(error);
         logger.error(`[ERROR] ❌ Transcription attempt ${attempt + 1} failed:`);
