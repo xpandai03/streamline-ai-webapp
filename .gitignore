@@ -46,3 +46,5 @@ logs/
 cookies.txt
 *.cookie
 .cache/
+
+**/**/.data/jobs

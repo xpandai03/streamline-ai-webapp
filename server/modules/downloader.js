@@ -5,6 +5,9 @@ const path = require('path');
 const fileStore = require('../utils/fileStore');
 const logger = require('../utils/logger');
 const { YtDlp } = require('ytdlp-nodejs');
+const https = require('https');
+const http = require('http');
+const fss = require('fs')
 
 const execAsync = promisify(exec);
 
@@ -99,8 +102,157 @@ async function checkCookieFile() {
 checkOAuthSetup().catch(err => logger.error('[DOWNLOADER] OAuth setup check failed:', err));
 checkCookieFile().catch(err => logger.error('[DOWNLOADER] Cookie file check failed:', err));
 
+function extractYouTubeVideoId(url) {
+  try {
+    // Handle different YouTube URL formats
+    const urlObj = new URL(url);
+    
+    // Standard watch URL: youtube.com/watch?v=VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname === '/watch') {
+      return urlObj.searchParams.get('v');
+    }
+    
+    // Shortened URL: youtu.be/VIDEO_ID
+    if (urlObj.hostname === 'youtu.be') {
+      return urlObj.pathname.slice(1).split('?')[0];
+    }
+    
+    // Embed URL: youtube.com/embed/VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname.startsWith('/embed/')) {
+      return urlObj.pathname.split('/')[2].split('?')[0];
+    }
+    
+    // Shorts URL: youtube.com/shorts/VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname.startsWith('/shorts/')) {
+      return urlObj.pathname.split('/')[2].split('?')[0];
+    }
+    
+    // Live URL: youtube.com/live/VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname.startsWith('/live/')) {
+      return urlObj.pathname.split('/')[2].split('?')[0];
+    }
+    
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function downloadFileSync(url, outputPath) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+
+    protocol.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+        return;
+      }
+
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+
+      response.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          fss.writeFileSync(outputPath, buffer);
+          console.log('Download completed!');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }).on('error', (err) => reject(err));
+  });
+}
+
+async function downloadHighestQualityVideo(apiResponse, outputPath) {
+  try {
+    // Get video items from the response
+    const videoItems = apiResponse.videos?.items || [];
+    
+    if (videoItems.length === 0) {
+      throw new Error('No video items found in API response');
+    }
+
+    // Filter videos that have audio (for complete video experience)
+    // If you want video+audio combined, choose items with hasAudio: true
+    const videosWithAudio = videoItems.filter(item => item.hasAudio);
+    
+    // If no videos with audio, fall back to all videos
+    const availableVideos = videosWithAudio.length > 0 ? videosWithAudio : videoItems;
+
+    // Find the highest quality video based on resolution and size
+    const highestQuality = availableVideos.reduce((best, current) => {
+      // Parse quality (e.g., "1080p" -> 1080)
+      const currentRes = parseInt(current.quality) || 0;
+      const bestRes = parseInt(best.quality) || 0;
+      
+      // Compare by resolution first, then by file size
+      if (currentRes > bestRes) {
+        return current;
+      } else if (currentRes === bestRes && current.size > best.size) {
+        return current;
+      }
+      return best;
+    });
+
+    console.log(`Selected video quality: ${highestQuality.quality}`);
+    console.log(`Video size: ${highestQuality.sizeText}`);
+    console.log(`MIME type: ${highestQuality.mimeType}`);
+    console.log(`Has audio: ${highestQuality.hasAudio}`);
+
+    // Download the video
+    // await downloadFileSync(highestQuality.url, outputPath);
+    execSync(`curl -L "${highestQuality.url}" -o "${outputPath}.mp4"`, { stdio: 'inherit' });
+    console.log('Video downloaded and saved as', outputPath);
+
+    return {
+      success: true,
+      videoInfo: {
+        quality: highestQuality.quality,
+        size: highestQuality.size,
+        sizeText: highestQuality.sizeText,
+        mimeType: highestQuality.mimeType,
+        extension: highestQuality.extension,
+        hasAudio: highestQuality.hasAudio,
+        width: highestQuality.width,
+        height: highestQuality.height,
+        lengthMs: highestQuality.lengthMs
+      },
+      outputPath
+    };
+
+  } catch (error) {
+    console.error('Error downloading video:', error);
+    throw error;
+  }
+}
+
+async function downloadWithRapidApi(youtubeUrl, outputTemplate) {
+  const url = `https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${extractYouTubeVideoId(youtubeUrl)}&urlAccess=normal&videos=auto&audios=auto`;
+  const options = {
+  method: 'GET',
+  headers: {
+    'x-rapidapi-key': 'c27bf113e1msh84df81cc9f7266fp11f6bajsn7fb3415730dc',
+    'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com'
+  }
+  };
+
+  console.log("making rapid api - --------------------------------")
+  try {
+    const response = await fetch(url, options);
+    const result = await response.json();
+    console.log(result);
+    await downloadHighestQualityVideo(result, outputTemplate);
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 async function downloadVideoWithJs(youtubeUrl, outputTemplate, options = {}) {
+  console.log(options)
+  await downloadWithRapidApi(youtubeUrl, outputTemplate);
+  return
   const ytdlp = new YtDlp();
   const formats = [
     'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
