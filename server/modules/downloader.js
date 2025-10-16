@@ -110,7 +110,7 @@ async function downloadVideoWithJs(youtubeUrl, outputTemplate, options = {}) {
   ];
   let lastError = null;
 
-  console.log(outputTemplate)
+  console.log(options)
   for (const format of formats) {
     try {
       const args = {
@@ -346,7 +346,6 @@ async function downloadVideo(youtubeUrl) {
     }
 
     await downloadVideoWithJs(youtubeUrl, outputTemplate,
-      
     {  proxyUrl,
       useOAuth,
       oauthTokenFile,
